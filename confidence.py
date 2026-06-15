@@ -68,7 +68,7 @@ def compute_coverage_confidence(portfolio_scope: str) -> dict:
     else:
         level = "Partial"
         explanation = (
-            f"Uploaded data represents {portfolio_scope} only. "
+            f"Uploaded data represents {portfolio_scope}. "
             "Work happening in other functions is not visible. "
             "Alignment findings reflect this function's activity only."
         )
