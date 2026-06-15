@@ -55,6 +55,13 @@ def render_strategy_form() -> dict | None:
             help="The thing that, if removed, would change everything else.",
         )
 
+        binding_constraint_other = ""
+        if binding_constraint == "Other":
+            binding_constraint_other = st.text_input(
+                "Describe the constraint",
+                placeholder="e.g. Regulatory approval, key partnership, board alignment",
+            )
+
         st.markdown("---")
         st.markdown("**Context**")
         st.caption("These two fields determine how findings are interpreted.")
@@ -92,7 +99,7 @@ def render_strategy_form() -> dict | None:
             "success_evidence": success_evidence.strip(),
             "deliberate_tradeoff_label": deliberate_tradeoff_label.strip(),
             "deliberate_tradeoff_rationale": deliberate_tradeoff_rationale.strip(),
-            "binding_constraint": binding_constraint,
+            "binding_constraint": binding_constraint_other.strip() if binding_constraint == "Other" and binding_constraint_other.strip() else binding_constraint,
             "portfolio_scope": portfolio_scope,
             "strategic_horizon": strategic_horizon,
         }
