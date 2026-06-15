@@ -275,16 +275,19 @@ Portfolio Coverage: {confidence_summary['coverage']['level']}
 {confidence_summary['coverage']['explanation']}
 
 ---
-Using the tools provided, analyze this portfolio against the stated strategic context.
-Call all six tools.
+PRE-COMPUTED DRIFT SIGNALS — these are facts, not suggestions. Every non-empty signal below MUST appear as a finding in the appropriate tool call. Do not omit, soften, or merge them into alignment findings.
 
-MANDATORY BEFORE RESPONDING:
-- Check "Related to deprioritized area" count. If non-zero, include a drift finding naming the count and percentage.
-- Check "Expected categories not present." If anything listed, include it as a hidden contradiction.
-- Check "Blocked initiatives supporting the strategic bet." If any exist, include an urgent drift finding.
-- Leadership questions must be specific to these findings — not generic strategy questions.
+SIGNAL 1 — DEPRIORITIZED AREA ALLOCATION:
+{f'⚠ DRIFT DETECTED: {pass2_output["bucket_counts"]["Related to deprioritized area"]} of {pass2_output["active_count"]} active initiatives ({pass2_output["bucket_pct"]["Related to deprioritized area"]}%) are classified as related to "{strategy_context.get("deliberate_tradeoff_label", "the deprioritized area")}" — the area leadership explicitly decided not to focus on this quarter. This must appear as a drift finding.' if pass2_output["bucket_counts"]["Related to deprioritized area"] > 0 else "✓ No active initiatives mapped to deprioritized area."}
 
-Surface what the data reveals. Do not soften findings."""
+SIGNAL 2 — BLOCKED BET INITIATIVES:
+{f'⚠ URGENT: {pass2_output["blocked_bet_count"]} initiative(s) directly supporting the strategic bet are currently BLOCKED: {", ".join(pass2_output["blocked_bet_initiatives"])}. Work that directly enables the strategic bet is not moving. This must appear as a High severity drift finding.' if pass2_output["blocked_bet_count"] > 0 else "✓ No blocked initiatives supporting the strategic bet."}
+
+SIGNAL 3 — EXPECTED BUT ABSENT:
+{chr(10).join([f"⚠ ABSENCE: {item} — this must appear as a hidden contradiction." for item in pass2_output["expected_but_absent"]]) if pass2_output["expected_but_absent"] else "✓ No expected categories absent."}
+
+---
+Now call all six tools. Use the pre-computed signals above as required inputs to drift_findings, hidden_contradictions, and leadership_questions. Do not produce empty sections for any signal marked ⚠."""
 
 
 def run_reasoning(pass1_output: dict, pass2_output: dict,
