@@ -290,6 +290,78 @@ SIGNAL 3 — EXPECTED BUT ABSENT:
 Now call all six tools. Use the pre-computed signals above as required inputs to drift_findings, hidden_contradictions, and leadership_questions. Do not produce empty sections for any signal marked ⚠."""
 
 
+def build_deterministic_questions(pass2_output: dict, strategy_context: dict) -> dict:
+    """
+    Generate leadership questions deterministically from confirmed signals.
+    Questions are specific to the findings — not generic strategy questions.
+    """
+    questions = []
+    tradeoff = strategy_context.get("deliberate_tradeoff_label", "the deprioritized area")
+    deprioritized_count = pass2_output["bucket_counts"]["Related to deprioritized area"]
+    deprioritized_pct = pass2_output["bucket_pct"]["Related to deprioritized area"]
+    active_count = pass2_output["active_count"]
+
+    if deprioritized_count > 0:
+        questions.append({
+            "question": (
+                f"{deprioritized_count} of {active_count} active initiatives ({deprioritized_pct}%) "
+                f"are related to '{tradeoff}' — the area we said we weren't focusing on. "
+                f"Do we have an explicit plan to wind these down, or have we not actually made the tradeoff?"
+            ),
+            "rationale": (
+                f"Stated tradeoffs that don't show up in the portfolio are not tradeoffs — "
+                f"they're intentions. {deprioritized_pct}% allocation to a deprioritized area "
+                f"suggests the decision either wasn't communicated or wasn't accepted."
+            ),
+        })
+
+    if pass2_output["blocked_bet_count"] > 0:
+        names = ", ".join(pass2_output["blocked_bet_initiatives"])
+        questions.append({
+            "question": (
+                f"The {names} initiative is blocked. "
+                f"This is the most direct execution vehicle for the strategic bet. "
+                f"What specifically is blocking it, who owns unblocking it, and by when?"
+            ),
+            "rationale": (
+                "A blocked initiative that directly supports the strategic bet is "
+                "the highest-leverage intervention point in the portfolio. "
+                "Generic status updates won't move it — a named owner and deadline will."
+            ),
+        })
+
+    for absent in pass2_output.get("expected_but_absent", []):
+        category = absent.split("(")[0].strip()
+        questions.append({
+            "question": (
+                f"No active initiatives appear in {category}. "
+                f"Given the stated strategy and binding constraint, "
+                f"is this work happening somewhere not captured in this data, "
+                f"or is it genuinely absent from the portfolio?"
+            ),
+            "rationale": absent,
+        })
+
+    no_connection_count = pass2_output["bucket_counts"]["No clear strategic connection"]
+    no_connection_pct = pass2_output["bucket_pct"]["No clear strategic connection"]
+    if no_connection_count > 0:
+        questions.append({
+            "question": (
+                f"{no_connection_count} active initiative(s) ({no_connection_pct}%) "
+                f"have no clear connection to the strategic bet, binding constraint, "
+                f"or deprioritized area. What are these initiatives for, "
+                f"and who approved them this quarter?"
+            ),
+            "rationale": (
+                "Work with no strategic connection isn't necessarily wrong — "
+                "it may be obligation or maintenance work. But it should be named and owned, "
+                "not invisible."
+            ),
+        })
+
+    return {"questions": questions}
+
+
 def build_deterministic_drift(pass2_output: dict, strategy_context: dict) -> dict:
     """
     Generate drift findings and hidden contradictions deterministically.
@@ -361,13 +433,14 @@ def run_reasoning(pass1_output: dict, pass2_output: dict,
 
     # Generate guaranteed findings deterministically — not dependent on Claude
     deterministic = build_deterministic_drift(pass2_output, strategy_context)
+    deterministic_questions = build_deterministic_questions(pass2_output, strategy_context)
 
     system_prompt = build_system_prompt(strategy_context, confidence_summary)
     user_message = build_user_message(pass1_output, pass2_output, strategy_context, confidence_summary)
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=6000,
+        max_tokens=4000,
         system=system_prompt,
         tools=TOOLS,
         tool_choice={"type": "any"},
@@ -380,31 +453,33 @@ def run_reasoning(pass1_output: dict, pass2_output: dict,
         "strategic_alignment": None,
         "drift_findings": deterministic["drift_findings"],
         "hidden_contradictions": deterministic["hidden_contradictions"],
-        "leadership_questions": None,
+        "leadership_questions": deterministic_questions,
         "confidence_caveats": None,
     }
 
     tool_map = {
         "write_portfolio_snapshot": "portfolio_snapshot",
         "identify_strategic_alignment": "strategic_alignment",
-        "generate_leadership_questions": "leadership_questions",
         "flag_confidence_caveats": "confidence_caveats",
-        # Claude may add to drift/contradictions — merge rather than replace
+        # Claude may add to these — merge rather than replace
         "identify_drift_findings": "_claude_drift",
         "surface_hidden_contradictions": "_claude_contradictions",
+        "generate_leadership_questions": "_claude_questions",
     }
 
     for block in response.content:
         if block.type == "tool_use" and block.name in tool_map:
             key = tool_map[block.name]
             if key == "_claude_drift":
-                # Merge Claude additions with deterministic findings
                 claude_findings = block.input.get("findings", [])
                 results["drift_findings"]["findings"].extend(claude_findings)
             elif key == "_claude_contradictions":
-                # Merge Claude additions with deterministic contradictions
                 claude_contradictions = block.input.get("contradictions", [])
                 results["hidden_contradictions"]["contradictions"].extend(claude_contradictions)
+            elif key == "_claude_questions":
+                # Merge Claude additions with deterministic questions
+                claude_questions = block.input.get("questions", [])
+                results["leadership_questions"]["questions"].extend(claude_questions)
             else:
                 results[key] = block.input
 
