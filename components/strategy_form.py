@@ -9,6 +9,10 @@ from schema import BINDING_CONSTRAINTS, PORTFOLIO_SCOPES, STRATEGIC_HORIZONS
 
 
 def render_strategy_form() -> dict | None:
+    """
+    Renders the strategy input form.
+    Returns strategy_context dict if submitted and valid, else None.
+    """
     st.subheader("Strategy Context")
     st.caption(
         "Answer five questions. This takes about 90 seconds. "
@@ -97,14 +101,30 @@ def render_strategy_form() -> dict | None:
 
 
 def render_strategy_quality_feedback(strategy_context: dict):
+    """
+    Inline quality feedback after strategy submission.
+    Does not block the run — informs and proceeds.
+    """
     warnings = []
     signals = []
 
     bet = strategy_context.get("strategic_bet", "")
     tradeoff = strategy_context.get("deliberate_tradeoff_label", "")
 
+    # Check for vague bet signals
     vague_terms = ["grow", "improve", "better", "increase", "scale", "build"]
-    if any(t in bet.lower() for t in vague_terms) and len(bet.split()) < 12:
+    jargon_terms = ["synergy", "paradigm", "excellence", "optimize", "leverage",
+                    "cross-functional", "unlock", "alignment", "transformation",
+                    "best-in-class", "world-class", "innovative", "disruptive"]
+
+    if any(t in bet.lower() for t in jargon_terms):
+        warnings.append(
+            "Your strategic bet contains language that is too general for drift analysis — "
+            "words like 'synergy', 'excellence', or 'paradigm' don't give the tool concrete "
+            "hooks to map initiatives against. Consider: what specific move are you making, "
+            "against which customer, in which market, by when?"
+        )
+    elif any(t in bet.lower() for t in vague_terms) and len(bet.split()) < 12:
         warnings.append(
             "Your strategic bet is directional but may not name a specific move. "
             "Consider: what would have to be true by end of quarter for this bet to be correct?"
