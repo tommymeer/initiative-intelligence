@@ -367,7 +367,7 @@ def run_reasoning(pass1_output: dict, pass2_output: dict,
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=4000,
+        max_tokens=6000,
         system=system_prompt,
         tools=TOOLS,
         tool_choice={"type": "any"},
