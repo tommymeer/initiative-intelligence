@@ -9,10 +9,6 @@ from schema import BINDING_CONSTRAINTS, PORTFOLIO_SCOPES, STRATEGIC_HORIZONS
 
 
 def render_strategy_form() -> dict | None:
-    """
-    Renders the strategy input form.
-    Returns strategy_context dict if submitted and valid, else None.
-    """
     st.subheader("Strategy Context")
     st.caption(
         "Answer five questions. This takes about 90 seconds. "
@@ -55,12 +51,11 @@ def render_strategy_form() -> dict | None:
             help="The thing that, if removed, would change everything else.",
         )
 
-        binding_constraint_other = ""
-        if binding_constraint == "Other":
-            binding_constraint_other = st.text_input(
-                "Describe the constraint",
-                placeholder="e.g. Regulatory approval, key partnership, board alignment",
-            )
+        binding_constraint_other = st.text_input(
+            "Specify constraint (if 'Other')",
+            placeholder="e.g. Regulatory approval, key partnership, board alignment",
+            help="Only needed if you selected 'Other' above.",
+        )
 
         st.markdown("---")
         st.markdown("**Context**")
@@ -94,12 +89,19 @@ def render_strategy_form() -> dict | None:
                 st.error(e)
             return None
 
+        # If Other selected and text provided, use the specific text
+        resolved_constraint = (
+            binding_constraint_other.strip()
+            if binding_constraint == "Other" and binding_constraint_other.strip()
+            else binding_constraint
+        )
+
         return {
             "strategic_bet": strategic_bet.strip(),
             "success_evidence": success_evidence.strip(),
             "deliberate_tradeoff_label": deliberate_tradeoff_label.strip(),
             "deliberate_tradeoff_rationale": deliberate_tradeoff_rationale.strip(),
-            "binding_constraint": binding_constraint_other.strip() if binding_constraint == "Other" and binding_constraint_other.strip() else binding_constraint,
+            "binding_constraint": resolved_constraint,
             "portfolio_scope": portfolio_scope,
             "strategic_horizon": strategic_horizon,
         }
@@ -108,17 +110,12 @@ def render_strategy_form() -> dict | None:
 
 
 def render_strategy_quality_feedback(strategy_context: dict):
-    """
-    Inline quality feedback after strategy submission.
-    Does not block the run — informs and proceeds.
-    """
     warnings = []
     signals = []
 
     bet = strategy_context.get("strategic_bet", "")
     tradeoff = strategy_context.get("deliberate_tradeoff_label", "")
 
-    # Check for vague bet signals
     vague_terms = ["grow", "improve", "better", "increase", "scale", "build"]
     jargon_terms = ["synergy", "paradigm", "excellence", "optimize", "leverage",
                     "cross-functional", "unlock", "alignment", "transformation",
