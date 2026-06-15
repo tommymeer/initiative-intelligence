@@ -1,0 +1,316 @@
+"""
+claude_reasoning.py
+Judgment layer — Claude Sonnet via structured tool use.
+
+Claude receives structured pass1 + pass2 metrics, never raw CSV.
+Six tools map to six output sections.
+Prompt calibrated to strategic horizon and confidence levels.
+"""
+
+import json
+import anthropic
+
+TOOLS = [
+    {
+        "name": "write_portfolio_snapshot",
+        "description": (
+            "Write a brief plain-language summary of what the portfolio contains. "
+            "Cover: total initiatives, active count, category shape, notable concentrations, "
+            "owner load if available. 2-4 sentences. No recommendations."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "narrative": {"type": "string"},
+            },
+            "required": ["narrative"],
+        },
+    },
+    {
+        "name": "identify_strategic_alignment",
+        "description": (
+            "Identify where the portfolio visibly supports the stated strategic bet. "
+            "Include non-obvious prerequisite work — infrastructure or compliance "
+            "that enables the bet even if not directly labeled as such. "
+            "Be specific: name initiative categories or patterns."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "observation": {"type": "string"},
+                            "evidence": {"type": "string"},
+                            "is_prerequisite_work": {"type": "boolean"},
+                        },
+                        "required": ["observation", "evidence", "is_prerequisite_work"],
+                    },
+                },
+            },
+            "required": ["findings"],
+        },
+    },
+    {
+        "name": "identify_drift_findings",
+        "description": (
+            "Identify specific discrepancies between stated strategic intent and observed execution. "
+            "Each finding must be quantified using the metrics provided. "
+            "Calibrate urgency to the strategic horizon: "
+            "short horizon (this quarter) → urgent, present-tense framing; "
+            "long horizon (12+ months) → interrogative framing ('is this prerequisite work or avoidance?'). "
+            "Name the gap. Do not soften it."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "finding": {"type": "string"},
+                            "evidence": {"type": "string"},
+                            "severity": {"type": "string", "enum": ["High", "Medium", "Low"]},
+                        },
+                        "required": ["finding", "evidence", "severity"],
+                    },
+                },
+            },
+            "required": ["findings"],
+        },
+    },
+    {
+        "name": "surface_hidden_contradictions",
+        "description": (
+            "Surface patterns in the portfolio that contradict the strategic context "
+            "in non-obvious ways. This is the absence detection pass: "
+            "reason about what the stated strategy implies should exist in the portfolio "
+            "but does not appear. Name specifically what is missing and why it matters. "
+            "Also surface cases where the portfolio contains work that "
+            "contradicts multiple stated priorities simultaneously."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "contradictions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "observation": {"type": "string"},
+                            "implication": {"type": "string"},
+                        },
+                        "required": ["observation", "implication"],
+                    },
+                },
+            },
+            "required": ["contradictions"],
+        },
+    },
+    {
+        "name": "generate_leadership_questions",
+        "description": (
+            "Generate 3-5 questions the drift findings suggest leadership should discuss. "
+            "These are not recommendations or actions. They are questions that force "
+            "the strategic conversation the data implies is needed. "
+            "Each question should be specific to the findings, not generic."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "question": {"type": "string"},
+                            "rationale": {"type": "string"},
+                        },
+                        "required": ["question", "rationale"],
+                    },
+                },
+            },
+            "required": ["questions"],
+        },
+    },
+    {
+        "name": "flag_confidence_caveats",
+        "description": (
+            "Flag any cases where confidence limitations affect specific findings. "
+            "Link classification or coverage caveats to the findings they qualify. "
+            "Only call this if there are meaningful caveats to surface — "
+            "do not generate generic disclaimers."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "caveats": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "caveat": {"type": "string"},
+                            "affected_findings": {"type": "string"},
+                        },
+                        "required": ["caveat", "affected_findings"],
+                    },
+                },
+            },
+            "required": ["caveats"],
+        },
+    },
+]
+
+
+def build_system_prompt(strategy_context: dict, confidence_summary: dict) -> str:
+    horizon = strategy_context.get("strategic_horizon", "This quarter (< 3 months)")
+    is_short_horizon = "quarter" in horizon.lower() or "3 month" in horizon.lower()
+
+    horizon_instruction = (
+        "The strategic horizon is SHORT (this quarter). "
+        "Frame drift findings as urgent and present-tense. "
+        "Misalignment now has direct consequences this quarter."
+        if is_short_horizon else
+        "The strategic horizon is LONGER than one quarter. "
+        "Frame drift findings as interrogative where appropriate: "
+        "'Is this prerequisite work or drift?' rather than assuming misalignment. "
+        "Some apparent drift may be correct sequencing."
+    )
+
+    classification_level = confidence_summary["classification"]["level"]
+    coverage_level = confidence_summary["coverage"]["level"]
+
+    confidence_instruction = ""
+    if classification_level == "Low":
+        confidence_instruction += (
+            "\nClassification confidence is LOW. "
+            "Many initiatives lacked descriptions. "
+            "Acknowledge uncertainty in findings where classification was likely unreliable. "
+            "Do not produce false precision."
+        )
+    if coverage_level in ("Partial", "Limited"):
+        scope = confidence_summary["coverage"]["scope"]
+        confidence_instruction += (
+            f"\nPortfolio coverage is {coverage_level} ({scope} only). "
+            "Explicitly note when a finding may be affected by incomplete portfolio visibility. "
+            "Do not conclude that absent work doesn't exist — it may simply not be in the upload."
+        )
+
+    return f"""You are an organizational diagnostician reviewing an initiative portfolio against stated strategic intent.
+
+Your job is to surface what the data reveals — not to recommend, prescribe, or tell leadership what to do.
+
+CORE PRINCIPLES:
+- Observation over recommendation. Name the gap. Do not tell them how to close it.
+- Quantification over characterization. Use the numbers provided. "26 of 34 active initiatives (76%)" is trustworthy. "Most initiatives" is not.
+- Absence detection is a first-class task. Reason about what the stated strategy implies should be visible but is not. This is often the most important finding.
+- Uncomfortable specificity. The goal is for the reader to think "damn, that's actually right." Vague findings fail this test.
+- Reason only from available evidence. Do not infer intent from titles alone when descriptions are absent. Say what the data shows, not what you imagine.
+
+HORIZON CALIBRATION:
+{horizon_instruction}
+
+CONFIDENCE:
+{confidence_instruction}
+
+When you call tools, use the metrics provided in the user message. Do not invent numbers. If a metric is not provided, work with what is available and note the limitation."""
+
+
+def build_user_message(pass1_output: dict, pass2_output: dict,
+                       strategy_context: dict, confidence_summary: dict) -> str:
+    """
+    Build the structured message Claude receives.
+    Clean metrics only — no raw CSV data.
+    """
+    return f"""STRATEGY CONTEXT
+Strategic Bet: {strategy_context.get('strategic_bet', 'Not provided')}
+Success Evidence: {strategy_context.get('success_evidence', 'Not provided')}
+Deliberate Tradeoff: {strategy_context.get('deliberate_tradeoff_label', 'Not provided')}
+Binding Constraint: {strategy_context.get('binding_constraint', 'Not provided')}
+Portfolio Scope: {strategy_context.get('portfolio_scope', 'Not provided')}
+Strategic Horizon: {strategy_context.get('strategic_horizon', 'Not provided')}
+
+PORTFOLIO METRICS (Pass 1)
+Total initiatives: {pass1_output['total_count']}
+Active: {pass1_output['active_count']} | Blocked: {pass1_output['blocked_count']} | Complete: {pass1_output['complete_count']} | Backlog: {pass1_output['backlog_count']}
+
+Category distribution (active initiatives):
+{json.dumps(pass1_output['active_category_pct'], indent=2)}
+
+Owner load (top owners):
+{json.dumps(pass1_output['owner_distribution'], indent=2) if pass1_output['owner_distribution'] else 'Owner data not available'}
+
+Initiatives with no recent activity (30+ days): {pass1_output['stale_count']}
+Initiatives with insufficient context for classification: {pass1_output['unclear_count']} ({100 - pass1_output['pct_with_context']:.1f}%)
+
+STRATEGIC EVIDENCE MAPPING (Pass 2)
+Active initiative allocation by strategic bucket:
+{json.dumps(pass2_output['bucket_pct'], indent=2)}
+
+Counts:
+{json.dumps(pass2_output['bucket_counts'], indent=2)}
+
+Blocked initiatives supporting the strategic bet (priority intervention signals):
+{pass2_output['blocked_bet_count']} initiatives: {', '.join(pass2_output['blocked_bet_initiatives']) or 'None'}
+
+Expected categories not present in active portfolio:
+{json.dumps(pass2_output['expected_but_absent'], indent=2) if pass2_output['expected_but_absent'] else 'None flagged'}
+
+CONFIDENCE SUMMARY
+Classification Confidence: {confidence_summary['classification']['level']}
+{confidence_summary['classification']['explanation']}
+
+Portfolio Coverage: {confidence_summary['coverage']['level']}
+{confidence_summary['coverage']['explanation']}
+
+---
+Using the tools provided, analyze this portfolio against the stated strategic context.
+Call all six tools. Surface what the data reveals."""
+
+
+def run_reasoning(pass1_output: dict, pass2_output: dict,
+                  strategy_context: dict, confidence_summary: dict) -> dict:
+    """
+    Main reasoning function. Returns structured tool outputs.
+    """
+    client = anthropic.Anthropic()
+
+    system_prompt = build_system_prompt(strategy_context, confidence_summary)
+    user_message = build_user_message(pass1_output, pass2_output, strategy_context, confidence_summary)
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4000,
+        system=system_prompt,
+        tools=TOOLS,
+        tool_choice={"type": "any"},
+        messages=[{"role": "user", "content": user_message}],
+    )
+
+    # Extract tool outputs
+    results = {
+        "portfolio_snapshot": None,
+        "strategic_alignment": None,
+        "drift_findings": None,
+        "hidden_contradictions": None,
+        "leadership_questions": None,
+        "confidence_caveats": None,
+    }
+
+    tool_map = {
+        "write_portfolio_snapshot": "portfolio_snapshot",
+        "identify_strategic_alignment": "strategic_alignment",
+        "identify_drift_findings": "drift_findings",
+        "surface_hidden_contradictions": "hidden_contradictions",
+        "generate_leadership_questions": "leadership_questions",
+        "flag_confidence_caveats": "confidence_caveats",
+    }
+
+    for block in response.content:
+        if block.type == "tool_use" and block.name in tool_map:
+            results[tool_map[block.name]] = block.input
+
+    return results
