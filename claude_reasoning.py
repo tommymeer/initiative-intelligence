@@ -290,12 +290,77 @@ SIGNAL 3 — EXPECTED BUT ABSENT:
 Now call all six tools. Use the pre-computed signals above as required inputs to drift_findings, hidden_contradictions, and leadership_questions. Do not produce empty sections for any signal marked ⚠."""
 
 
+def build_deterministic_drift(pass2_output: dict, strategy_context: dict) -> dict:
+    """
+    Generate drift findings and hidden contradictions deterministically.
+    These are facts — they do not depend on Claude choosing to surface them.
+    Claude only interprets and expands; it does not decide whether signals exist.
+    """
+    drift_findings = []
+    hidden_contradictions = []
+
+    tradeoff = strategy_context.get("deliberate_tradeoff_label", "the deprioritized area")
+    deprioritized_count = pass2_output["bucket_counts"]["Related to deprioritized area"]
+    deprioritized_pct = pass2_output["bucket_pct"]["Related to deprioritized area"]
+    active_count = pass2_output["active_count"]
+
+    # Signal 1: Deprioritized area drift
+    if deprioritized_count > 0:
+        drift_findings.append({
+            "finding": (
+                f"{deprioritized_count} of {active_count} active initiatives ({deprioritized_pct}%) "
+                f"are classified as related to '{tradeoff}' — the area leadership explicitly "
+                f"decided not to focus on this quarter."
+            ),
+            "evidence": (
+                f"Strategic evidence mapping: 'Related to deprioritized area' bucket = "
+                f"{deprioritized_count} initiatives ({deprioritized_pct}% of active portfolio). "
+                f"Deliberate tradeoff declared: '{tradeoff}'."
+            ),
+            "severity": "High" if deprioritized_pct >= 20 else "Medium",
+        })
+
+    # Signal 2: Blocked bet initiatives
+    if pass2_output["blocked_bet_count"] > 0:
+        names = ", ".join(pass2_output["blocked_bet_initiatives"])
+        drift_findings.append({
+            "finding": (
+                f"{pass2_output['blocked_bet_count']} initiative(s) directly supporting "
+                f"the strategic bet are currently blocked: {names}. "
+                f"Work that directly enables the strategic bet is not moving."
+            ),
+            "evidence": (
+                f"Blocked initiatives mapped to 'Supports strategic bet' bucket: {names}."
+            ),
+            "severity": "High",
+        })
+
+    # Signal 3: Expected but absent categories
+    for absent_item in pass2_output.get("expected_but_absent", []):
+        hidden_contradictions.append({
+            "observation": (
+                f"No active initiatives found in: {absent_item.split('(')[0].strip()}."
+            ),
+            "implication": absent_item,
+        })
+
+    return {
+        "drift_findings": {"findings": drift_findings},
+        "hidden_contradictions": {"contradictions": hidden_contradictions},
+    }
+
+
 def run_reasoning(pass1_output: dict, pass2_output: dict,
                   strategy_context: dict, confidence_summary: dict) -> dict:
     """
-    Main reasoning function. Returns structured tool outputs.
+    Main reasoning function.
+    Drift findings and hidden contradictions are generated deterministically.
+    Claude handles: portfolio snapshot, strategic alignment, leadership questions, confidence caveats.
     """
     client = anthropic.Anthropic()
+
+    # Generate guaranteed findings deterministically — not dependent on Claude
+    deterministic = build_deterministic_drift(pass2_output, strategy_context)
 
     system_prompt = build_system_prompt(strategy_context, confidence_summary)
     user_message = build_user_message(pass1_output, pass2_output, strategy_context, confidence_summary)
@@ -309,12 +374,12 @@ def run_reasoning(pass1_output: dict, pass2_output: dict,
         messages=[{"role": "user", "content": user_message}],
     )
 
-    # Extract tool outputs
+    # Start with deterministic findings — these are guaranteed
     results = {
         "portfolio_snapshot": None,
         "strategic_alignment": None,
-        "drift_findings": None,
-        "hidden_contradictions": None,
+        "drift_findings": deterministic["drift_findings"],
+        "hidden_contradictions": deterministic["hidden_contradictions"],
         "leadership_questions": None,
         "confidence_caveats": None,
     }
@@ -322,14 +387,25 @@ def run_reasoning(pass1_output: dict, pass2_output: dict,
     tool_map = {
         "write_portfolio_snapshot": "portfolio_snapshot",
         "identify_strategic_alignment": "strategic_alignment",
-        "identify_drift_findings": "drift_findings",
-        "surface_hidden_contradictions": "hidden_contradictions",
         "generate_leadership_questions": "leadership_questions",
         "flag_confidence_caveats": "confidence_caveats",
+        # Claude may add to drift/contradictions — merge rather than replace
+        "identify_drift_findings": "_claude_drift",
+        "surface_hidden_contradictions": "_claude_contradictions",
     }
 
     for block in response.content:
         if block.type == "tool_use" and block.name in tool_map:
-            results[tool_map[block.name]] = block.input
+            key = tool_map[block.name]
+            if key == "_claude_drift":
+                # Merge Claude additions with deterministic findings
+                claude_findings = block.input.get("findings", [])
+                results["drift_findings"]["findings"].extend(claude_findings)
+            elif key == "_claude_contradictions":
+                # Merge Claude additions with deterministic contradictions
+                claude_contradictions = block.input.get("contradictions", [])
+                results["hidden_contradictions"]["contradictions"].extend(claude_contradictions)
+            else:
+                results[key] = block.input
 
     return results
