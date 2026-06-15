@@ -205,10 +205,18 @@ Your job is to surface what the data reveals — not to recommend, prescribe, or
 
 CORE PRINCIPLES:
 - Observation over recommendation. Name the gap. Do not tell them how to close it.
-- Quantification over characterization. Use the numbers provided. "26 of 34 active initiatives (76%)" is trustworthy. "Most initiatives" is not.
+- Quantification over characterization. Use the numbers provided. "4 of 14 active initiatives (28.6%)" is trustworthy. "Some initiatives" is not.
 - Absence detection is a first-class task. Reason about what the stated strategy implies should be visible but is not. This is often the most important finding.
 - Uncomfortable specificity. The goal is for the reader to think "damn, that's actually right." Vague findings fail this test.
 - Reason only from available evidence. Do not infer intent from titles alone when descriptions are absent. Say what the data shows, not what you imagine.
+
+REQUIRED DRIFT CHECKS — you must evaluate all three, every run:
+
+1. DEPRIORITIZED AREA DRIFT: If "Related to deprioritized area" bucket has ANY non-zero count, this is a required drift finding. Do not ignore it. Name the count, the percentage, and what it means that active work is flowing into an area leadership explicitly decided to stop. This is the clearest drift signal in the system.
+
+2. ABSENCE DETECTION: Look at "Expected categories not present in active portfolio" in the data. If anything is listed there, surface it as a hidden contradiction. A strategy implies certain work must exist. If that work is absent, name it explicitly: "The stated strategy implies X should be visible in the portfolio. It is not."
+
+3. BLOCKED BET INITIATIVES: If any initiatives supporting the strategic bet are blocked, this is an urgent finding. Name the specific initiative, name it as blocked, and surface the implication: work that directly supports the strategic bet is not moving.
 
 HORIZON CALIBRATION:
 {horizon_instruction}
@@ -268,7 +276,15 @@ Portfolio Coverage: {confidence_summary['coverage']['level']}
 
 ---
 Using the tools provided, analyze this portfolio against the stated strategic context.
-Call all six tools. Surface what the data reveals."""
+Call all six tools.
+
+MANDATORY BEFORE RESPONDING:
+- Check "Related to deprioritized area" count. If non-zero, include a drift finding naming the count and percentage.
+- Check "Expected categories not present." If anything listed, include it as a hidden contradiction.
+- Check "Blocked initiatives supporting the strategic bet." If any exist, include an urgent drift finding.
+- Leadership questions must be specific to these findings — not generic strategy questions.
+
+Surface what the data reveals. Do not soften findings."""
 
 
 def run_reasoning(pass1_output: dict, pass2_output: dict,
