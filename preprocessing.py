@@ -30,9 +30,10 @@ def suggest_column_mapping(df_columns: list[str]) -> dict[str, Optional[str]]:
     Used to pre-populate the column mapping UI — user confirms before run.
     """
     schema_hints = {
-        "title": ["title", "name", "initiative", "task", "issue", "summary", "subject"],
-        "status": ["status", "state", "stage", "phase"],
-        "description": ["description", "desc", "details", "body", "notes", "summary"],
+        "title": ["title", "name", "initiative", "task", "issue", "summary", "subject", "item"],
+        "status": ["status", "state", "stage", "phase", "current_status", "current status"],
+        "description": ["description", "desc", "details", "body", "notes", "summary",
+                        "initiative_desc", "task_desc", "issue_desc", "detail"],
         "owner": ["owner", "assignee", "assigned", "responsible", "lead", "reporter"],
         "priority": ["priority", "p0", "p1", "urgency", "severity", "importance"],
         "labels": ["labels", "tags", "label", "tag", "category", "type", "component"],
