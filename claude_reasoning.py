@@ -416,6 +416,26 @@ def build_deterministic_drift(pass2_output: dict, strategy_context: dict) -> dic
             "implication": absent_item,
         })
 
+    # Signal 4: High no-connection percentage — strategy may be too vague to filter
+    no_connection_count = pass2_output["bucket_counts"]["No clear strategic connection"]
+    no_connection_pct = pass2_output["bucket_pct"]["No clear strategic connection"]
+    if no_connection_pct >= 40:
+        drift_findings.append({
+            "finding": (
+                f"{no_connection_count} of {active_count} active initiatives ({no_connection_pct}%) "
+                f"have no clear connection to the stated strategic bet, binding constraint, "
+                f"or deprioritized area. This is not a drift signal — it is a coherence signal: "
+                f"the strategy as stated does not provide enough specificity to filter execution."
+            ),
+            "evidence": (
+                f"Strategic evidence mapping: 'No clear strategic connection' = "
+                f"{no_connection_count} initiatives ({no_connection_pct}% of active portfolio). "
+                f"When this exceeds 40%, the strategy input lacks sufficient concrete terms "
+                f"to anchor the portfolio analysis."
+            ),
+            "severity": "High" if no_connection_pct >= 60 else "Medium",
+        })
+
     return {
         "drift_findings": {"findings": drift_findings},
         "hidden_contradictions": {"contradictions": hidden_contradictions},
