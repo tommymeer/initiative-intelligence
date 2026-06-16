@@ -17,9 +17,10 @@ def render_column_mapping(df: pd.DataFrame) -> dict | None:
     st.caption(
         "Match your CSV columns to the standard schema. "
         "Fields marked * are required. Pre-populated based on column names — confirm before proceeding. "
-        "Jira exports: select 'Summary' for title. "
-        "Asana exports: no Status column by default — add a Status custom field in Asana before exporting, "
-        "or all initiatives will default to Backlog."
+        "Jira: select 'Summary' for title. "
+        "Asana: no Status column by default — add a Status custom field before exporting. "
+        "Trello: map 'List Name' to Status. "
+        "Monday.com: column headers include type in parentheses (e.g. 'Status (Status)') — these map automatically."
     )
 
     suggestions = suggest_column_mapping(list(df.columns))
