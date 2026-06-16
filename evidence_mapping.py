@@ -43,10 +43,10 @@ def extract_strategy_keywords(strategy_context: dict) -> dict:
         "enterprise": ["enterprise", "b2b", "corporate", "compliance", "security",
                        "soc2", "hipaa", "audit", "procurement", "sales", "deal"],
         "smb": ["smb", "small business", "self-serve", "self serve", "freemium",
-                "trial", "signup", "onboarding", "low-touch"],
+                "low-touch"],
         "retention": ["retention", "churn", "renewal", "expansion", "nps", "csat",
                       "health score", "customer success", "adoption"],
-        "growth": ["growth", "acquisition", "new user", "signup", "lead", "pipeline",
+        "growth": ["growth", "acquisition", "new user", "lead", "pipeline",
                    "conversion", "activation"],
         "platform": ["platform", "infrastructure", "api", "integration", "developer",
                      "sdk", "marketplace"],
@@ -94,9 +94,9 @@ def score_initiative_alignment(initiative: dict, keyword_sets: dict) -> str:
     tradeoff_score = match_score(keyword_sets["tradeoff_keywords"])
     constraint_score = match_score(keyword_sets["constraint_keywords"])
 
-    # Tradeoff check runs independently — an initiative can support the bet
-    # AND be related to the deprioritized area (interesting contradiction signal)
-    is_tradeoff_related = tradeoff_score >= 1
+    # Tradeoff check requires stronger signal — at least 2 keyword matches
+    # to avoid false positives from generic terms like "onboarding"
+    is_tradeoff_related = tradeoff_score >= 2
 
     if bet_score >= 2:
         bucket = "Supports strategic bet"
