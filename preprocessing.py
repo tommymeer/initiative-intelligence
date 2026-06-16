@@ -31,27 +31,45 @@ def suggest_column_mapping(df_columns: list[str]) -> dict[str, Optional[str]]:
     """
     schema_hints = {
         "title": ["title", "name", "initiative", "task", "issue", "summary", "subject", "item"],
-        "status": ["status", "state", "stage", "phase", "current_status", "current status"],
-        "description": ["description", "desc", "details", "body", "notes", "summary",
-                        "initiative_desc", "task_desc", "issue_desc", "detail"],
+        "status": ["status", "state", "stage", "phase", "current_status", "current status",
+                   "list name", "list", "column", "status (status)", "status_(status)"],
+        "description": ["description", "desc", "details", "body", "notes",
+                        "initiative_desc", "task_desc", "issue_desc", "detail",
+                        "notes (long text)", "description (long text)"],
         "owner": ["owner", "assignee", "assigned", "responsible", "lead", "reporter",
-                  "whos_doing", "who_is", "person", "member", "teammate"],
-        "priority": ["priority", "p0", "p1", "urgency", "severity", "importance"],
-        "labels": ["labels", "tags", "label", "tag", "category", "type", "component"],
-        "due_date": ["due", "due_date", "deadline", "target", "end_date", "eta"],
-        "last_updated": ["updated", "last_updated", "modified", "last_modified", "updated_at"],
+                  "whos_doing", "who_is", "person", "member", "teammate",
+                  "people", "person (people)", "assigned to"],
+        "priority": ["priority", "p0", "p1", "urgency", "severity", "importance",
+                     "priority (dropdown)"],
+        "labels": ["labels", "tags", "label", "tag", "category", "type", "component",
+                   "tags (tags)"],
+        "due_date": ["due", "due_date", "deadline", "target", "end_date", "eta",
+                     "due date (date)", "date (date)"],
+        "last_updated": ["updated", "last_updated", "modified", "last_modified", "updated_at",
+                         "last modified date"],
     }
 
-    normalized = {col: col.lower().strip().replace(" ", "_").replace("-", "_")
+    normalized = {col: col.lower().strip().replace(" ", "_").replace("-", "_").replace("(", "").replace(")", "")
                   for col in df_columns}
 
     mapping = {}
     for schema_field, hints in schema_hints.items():
         match = None
+        best_score = 0
         for col, norm in normalized.items():
-            if any(hint in norm or norm in hint for hint in hints):
+            # Score: 3 = exact match, 2 = hint is in norm, 1 = norm is in hint (weak)
+            score = 0
+            for hint in hints:
+                hint_norm = hint.replace(" ", "_").replace("-", "_").replace("(", "").replace(")", "")
+                if norm == hint_norm:
+                    score = max(score, 3)
+                elif hint_norm in norm:
+                    score = max(score, 2)
+                elif norm in hint_norm and len(norm) > 3:
+                    score = max(score, 1)
+            if score > best_score:
+                best_score = score
                 match = col
-                break
         mapping[schema_field] = match
 
     return mapping
