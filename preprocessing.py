@@ -88,8 +88,9 @@ def validate_csv(df: pd.DataFrame, column_mapping: dict[str, str]) -> dict:
         )
 
     # Null checks on required fields
-    if "title" in df_std.columns:
-        null_titles = int(df_std["title"].isna().sum())
+    title_col = column_mapping.get("title")
+    if title_col and title_col in df.columns:
+        null_titles = int(df[title_col].isna().sum())
         if null_titles > 0:
             warnings.append(f"{null_titles} initiatives have no title and will be excluded.")
 
