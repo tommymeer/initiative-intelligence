@@ -42,19 +42,29 @@ STANDARD_STATUSES = [
     "Cancelled",
 ]
 
+# Common status strings from Jira/Linear/Asana → standard status
+# Used as fuzzy defaults; user confirms via UI
 STATUS_DEFAULTS = {
+    # Active variants
     "in progress": "Active",
     "in-progress": "Active",
+    "in-flight": "Active",
+    "in flight": "Active",
     "doing": "Active",
     "wip": "Active",
     "started": "Active",
     "active": "Active",
     "open": "Active",
+    "almost done": "In Review",
+    "staged": "In Review",
+    "staging": "In Review",
+    # Blocked variants
     "blocked": "Blocked",
     "on hold": "Blocked",
     "waiting": "Blocked",
     "paused": "Blocked",
     "impediment": "Blocked",
+    # Complete variants
     "done": "Complete",
     "complete": "Complete",
     "completed": "Complete",
@@ -62,24 +72,32 @@ STATUS_DEFAULTS = {
     "resolved": "Complete",
     "shipped": "Complete",
     "released": "Complete",
+    # Backlog variants
     "backlog": "Backlog",
     "todo": "Backlog",
     "to do": "Backlog",
     "to-do": "Backlog",
     "planned": "Backlog",
     "new": "Backlog",
+    "open": "Backlog",
+    # In Review variants
     "in review": "In Review",
     "review": "In Review",
     "pr open": "In Review",
     "testing": "In Review",
     "qa": "In Review",
+    # Cancelled variants
     "cancelled": "Cancelled",
     "canceled": "Cancelled",
     "won't do": "Cancelled",
     "wontdo": "Cancelled",
     "rejected": "Cancelled",
+    "dropped": "Cancelled",
+    "waiting on": "Blocked",
+    "waiting": "Blocked",
 }
 
+# Statuses that count as "active work" for analysis purposes
 ACTIVE_STATUSES = {"Active", "Blocked", "In Review"}
 
 # ── Initiative category taxonomy ────────────────────────────────────────────
@@ -96,6 +114,7 @@ INITIATIVE_CATEGORIES = [
     "Unclear / Insufficient Information",
 ]
 
+# Keyword signals per category (title + description matching)
 CATEGORY_KEYWORDS = {
     "Product / Feature Development": [
         "feature", "product", "launch", "ship", "build", "implement",
@@ -191,7 +210,10 @@ STRATEGIC_HORIZONS = [
     "2+ years",
 ]
 
+# ── Confidence thresholds ───────────────────────────────────────────────────
+# Classification confidence based on % of initiatives with usable descriptions
 CLASSIFICATION_CONFIDENCE_THRESHOLDS = {
-    "High": 0.70,
-    "Medium": 0.40,
+    "High": 0.70,    # >= 70% have descriptions
+    "Medium": 0.40,  # 40–69%
+    # Below 40% → Low
 }
