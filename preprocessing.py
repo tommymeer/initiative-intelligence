@@ -34,7 +34,8 @@ def suggest_column_mapping(df_columns: list[str]) -> dict[str, Optional[str]]:
         "status": ["status", "state", "stage", "phase", "current_status", "current status"],
         "description": ["description", "desc", "details", "body", "notes", "summary",
                         "initiative_desc", "task_desc", "issue_desc", "detail"],
-        "owner": ["owner", "assignee", "assigned", "responsible", "lead", "reporter"],
+        "owner": ["owner", "assignee", "assigned", "responsible", "lead", "reporter",
+                  "whos_doing", "who_is", "person", "member", "teammate"],
         "priority": ["priority", "p0", "p1", "urgency", "severity", "importance"],
         "labels": ["labels", "tags", "label", "tag", "category", "type", "component"],
         "due_date": ["due", "due_date", "deadline", "target", "end_date", "eta"],
@@ -157,8 +158,13 @@ def run_pass1(df: pd.DataFrame, column_mapping: dict[str, str],
     rename_map = {v: k for k, v in column_mapping.items() if v}
     df = df.rename(columns=rename_map).copy()
 
-    # Drop rows with no title
-    df = df[df["title"].notna() & (df["title"].str.strip() != "")].reset_index(drop=True)
+    # Drop fully blank rows early
+    df = df.dropna(how="all").reset_index(drop=True)
+
+    # Cast title to string to handle numeric IDs or mixed types, then drop empty
+    if "title" in df.columns:
+        df["title"] = df["title"].astype(str).str.strip()
+        df = df[df["title"].notna() & (df["title"] != "") & (df["title"] != "nan")].reset_index(drop=True)
 
     # Normalize status
     df["status_normalized"] = df["status"].apply(
