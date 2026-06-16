@@ -345,12 +345,13 @@ def build_deterministic_questions(pass2_output: dict, strategy_context: dict) ->
     no_connection_count = pass2_output["bucket_counts"]["No clear strategic connection"]
     no_connection_pct = pass2_output["bucket_pct"]["No clear strategic connection"]
     if no_connection_count > 0:
+        initiative_word = "initiative" if no_connection_count == 1 else "initiatives"
         questions.append({
             "question": (
-                f"{no_connection_count} active initiative(s) ({no_connection_pct}%) "
+                f"{no_connection_count} active {initiative_word} ({no_connection_pct}%) "
                 f"have no clear connection to the strategic bet, binding constraint, "
-                f"or deprioritized area. What are these initiatives for, "
-                f"and who approved them this quarter?"
+                f"or deprioritized area. What are {"this initiative" if no_connection_count == 1 else "these initiatives"} for, "
+                f"and who approved {"it" if no_connection_count == 1 else "them"} this quarter?"
             ),
             "rationale": (
                 "Work with no strategic connection isn't necessarily wrong — "
@@ -407,6 +408,23 @@ def build_deterministic_drift(pass2_output: dict, strategy_context: dict) -> dic
             "severity": "High",
         })
 
+    # Signal 2b: Binding constraint has zero portfolio support
+    constraint = strategy_context.get("binding_constraint", "")
+    constraint_count = pass2_output["bucket_counts"]["Supports binding constraint"]
+    if constraint_count == 0 and constraint and constraint not in ("Other", "— select —"):
+        drift_findings.append({
+            "finding": (
+                f"Zero active initiatives are classified as directly supporting the binding constraint: "
+                f"'{constraint}'. The declared binding constraint — the thing that stops progress "
+                f"if not addressed — has no visible portfolio presence."
+            ),
+            "evidence": (
+                f"Strategic evidence mapping: 'Supports binding constraint' bucket = 0 initiatives. "
+                f"Binding constraint declared: '{constraint}'."
+            ),
+            "severity": "High",
+        })
+
     # Signal 3: Expected but absent categories
     for absent_item in pass2_output.get("expected_but_absent", []):
         hidden_contradictions.append({
@@ -420,16 +438,17 @@ def build_deterministic_drift(pass2_output: dict, strategy_context: dict) -> dic
     no_connection_count = pass2_output["bucket_counts"]["No clear strategic connection"]
     no_connection_pct = pass2_output["bucket_pct"]["No clear strategic connection"]
     if no_connection_pct >= 40:
+        initiative_word = "initiative" if no_connection_count == 1 else "initiatives"
         drift_findings.append({
             "finding": (
-                f"{no_connection_count} of {active_count} active initiatives ({no_connection_pct}%) "
+                f"{no_connection_count} of {active_count} active {initiative_word} ({no_connection_pct}%) "
                 f"have no clear connection to the stated strategic bet, binding constraint, "
                 f"or deprioritized area. This is not a drift signal — it is a coherence signal: "
                 f"the strategy as stated does not provide enough specificity to filter execution."
             ),
             "evidence": (
                 f"Strategic evidence mapping: 'No clear strategic connection' = "
-                f"{no_connection_count} initiatives ({no_connection_pct}% of active portfolio). "
+                f"{no_connection_count} {initiative_word} ({no_connection_pct}% of active portfolio). "
                 f"When this exceeds 40%, the strategy input lacks sufficient concrete terms "
                 f"to anchor the portfolio analysis."
             ),
