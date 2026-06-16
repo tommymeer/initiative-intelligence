@@ -10,10 +10,16 @@ from preprocessing import suggest_column_mapping
 
 
 def render_column_mapping(df: pd.DataFrame) -> dict | None:
+    """
+    Renders column mapping UI. Returns confirmed column_mapping dict or None.
+    """
     st.subheader("Map Your Columns")
     st.caption(
         "Match your CSV columns to the standard schema. "
-        "Fields marked * are required. Pre-populated based on column names — confirm before proceeding."
+        "Fields marked * are required. Pre-populated based on column names — confirm before proceeding. "
+        "Jira exports: select 'Summary' for title. "
+        "Asana exports: no Status column by default — add a Status custom field in Asana before exporting, "
+        "or all initiatives will default to Backlog."
     )
 
     suggestions = suggest_column_mapping(list(df.columns))
@@ -33,6 +39,11 @@ def render_column_mapping(df: pd.DataFrame) -> dict | None:
 
 
 def render_status_mapping(df: pd.DataFrame, status_col: str) -> dict:
+    """
+    Renders status normalization UI.
+    User maps their status values to standard statuses.
+    Returns {raw_status: standard_status}.
+    """
     st.subheader("Normalize Status Values")
     st.caption(
         "Map your status values to standard states. "
