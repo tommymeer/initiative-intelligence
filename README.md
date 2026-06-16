@@ -102,7 +102,15 @@ ANTHROPIC_API_KEY=your_key_here
 
 Minimum: 5 rows. Soft cap: 300 rows.
 
-**Supported sources:** Jira (Board → Export Issues), Linear (Settings → Export), Asana (Export CSV), Notion (Export as CSV), any spreadsheet.
+**Supported sources:** Jira, Linear, Asana, Notion, or any spreadsheet exported as CSV.
+
+**Jira:** Use "Export CSV (current fields)" from the issue search view. The title column exports as `Summary` — select that in the column mapping UI (the fuzzy matcher may suggest `Issue Key` instead).
+
+**Linear:** Use Settings → Administration → Import/Export → Export CSV. Column names map automatically — no manual correction needed.
+
+**Asana:** Asana does not export a native Status column. Before exporting, add a "Status" custom field to your project and populate it. Without this, all initiatives will default to Backlog in the analysis. Export via the project dropdown → Export/sync → CSV.
+
+**Notion:** Export the database as CSV. Column names vary by setup — use the column mapping UI to confirm mappings before running.
 
 ---
 
