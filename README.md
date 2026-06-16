@@ -162,10 +162,38 @@ The tool surfaces what the data reveals. It does not tell leadership what to do.
 ## Known Limitations (v1)
 
 - No persistence — single-run analysis only
-- No live integrations — CSV export only
+- No live integrations — CSV export only; Jira/Linear MCP is the planned v2 extension
 - Classification relies on keyword matching — sparse initiative data degrades quality (surfaced in confidence score)
+- Evidence mapping uses keyword overlap — nuanced strategic connections that require contextual judgment are handled by Claude, not guaranteed by the deterministic layer
 - Portfolio scope is user-declared — tool cannot verify completeness
 - Single-threaded hosting — not for high concurrency
+
+---
+
+## Planned Extensions
+
+**v1.1 — Constraint Contradiction Detection**
+
+The current hidden contradictions layer detects absent categories but misses comparative contradictions — cases where the portfolio allocation implies a different constraint than the one leadership declared.
+
+The pattern is deterministic and already computable from existing data:
+
+- If binding constraint = Distribution/GTM but GTM allocation = 0% and compliance/platform allocation > 25%, the portfolio is behaving as though product readiness is the constraint, not GTM. That's a finding worth surfacing explicitly.
+- If binding constraint = Customer Validation but research/discovery allocation = 0% and infrastructure allocation dominates, the portfolio is investing in building rather than learning. Same logic.
+
+These are rules, not inference. They sit directly on top of Pass 2 output and require no new architecture. The output would look like: *"Leadership identified Distribution/GTM as the primary constraint. However, the portfolio is allocating significantly more effort toward compliance, security, and platform readiness than toward GTM enablement. The observed allocation suggests the organization may be operating as though product readiness is the true constraint."* That's the highest-leverage finding the tool doesn't yet produce.
+
+**v2 — Live System Integration**
+
+Replace CSV export with direct MCP connections to Linear and Jira. Same analytical architecture, no manual export step. The deterministic layer's column mapping and schema normalization are already designed to handle this transition — the MCP integration is an ingestion change, not an architectural one.
+
+**v2 — Quarter-over-Quarter Drift Tracking**
+
+Add Supabase persistence to enable drift comparison across planning cycles. The most valuable organizational question isn't "are we drifting now" — it's "are we drifting more or less than last quarter, and in which direction." That requires a session history layer the current stateless architecture intentionally defers.
+
+**v3 — Executive Attention Synthesizer Integration**
+
+Initiative Intelligence is designed to produce structured output that feeds directly into the Executive Attention Synthesizer — the fifth tool in the Ground Truth Decisioning System. The synthesis layer reads across WBR output (operational signal), Meeting Intelligence output (decision signal), Pipeline output (commercial signal), and Initiative Intelligence output (execution signal) to produce a cross-signal organizational diagnosis. The current tool's export format is designed with that downstream consumption in mind.
 
 ---
 
