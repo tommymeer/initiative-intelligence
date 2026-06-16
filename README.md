@@ -102,7 +102,7 @@ ANTHROPIC_API_KEY=your_key_here
 
 Minimum: 5 rows. Soft cap: 300 rows.
 
-**Supported sources:** Jira, Linear, Asana, Notion, or any spreadsheet exported as CSV.
+**Supported sources:** Jira, Linear, Asana, Notion, Trello, Monday.com, or any spreadsheet exported as CSV.
 
 **Jira:** Use "Export CSV (current fields)" from the issue search view. The title column exports as `Summary` — select that in the column mapping UI (the fuzzy matcher may suggest `Issue Key` instead).
 
@@ -110,7 +110,11 @@ Minimum: 5 rows. Soft cap: 300 rows.
 
 **Asana:** Asana does not export a native Status column. Before exporting, add a "Status" custom field to your project and populate it. Without this, all initiatives will default to Backlog in the analysis. Export via the project dropdown → Export/sync → CSV.
 
-**Notion:** Export the database as CSV. Column names vary by setup — use the column mapping UI to confirm mappings before running.
+**Notion:** Export the database as CSV via the ••• menu → Export → Markdown & CSV. The export downloads as a ZIP — unzip it first and upload the CSV. Column names reflect your property names, so they vary. Relation properties export as UUIDs rather than readable text — avoid mapping those columns. Use simple text, select, and date properties for best results.
+
+**Trello:** CSV export requires Trello Premium. Free users can only export JSON, which this tool does not accept. For Premium users: Show Menu → More → Print and Export → Export as CSV. Trello uses "List Name" as its status equivalent (cards live in lists, not status fields) — manually map the `List Name` column to Status in the column mapping UI.
+
+**Monday.com:** Export via the board menu → Export to Excel, then save as CSV. Column headers include the column type in parentheses (e.g. `Status (Status)`, `Due Date (Date)`) — the fuzzy matcher handles these correctly. Owner/Person columns export as email addresses rather than names.
 
 ---
 
